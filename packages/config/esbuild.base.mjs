@@ -1,6 +1,6 @@
 import esbuild from "esbuild";
 import builtins from "builtin-modules";
-import { copyFileSync, existsSync, mkdirSync } from "fs";
+import { copyFileSync, existsSync, mkdirSync, watch } from "fs";
 import { join } from "path";
 
 const banner = `/*
@@ -29,12 +29,31 @@ const OBSIDIAN_EXTERNALS = [
 // Obsidian loads a plugin from a folder containing main.js + manifest.json
 // (+ optional styles.css). We build main.js into dist/ and copy the static
 // assets next to it so the whole dist/ folder is a ready-to-load plugin.
+const STATIC_ASSETS = ["manifest.json", "styles.css", "versions.json"];
+
 function copyAssets(pluginDir, outDir) {
 	mkdirSync(outDir, { recursive: true });
-	for (const file of ["manifest.json", "styles.css", "versions.json"]) {
+	for (const file of STATIC_ASSETS) {
 		const src = join(pluginDir, file);
 		if (existsSync(src)) copyFileSync(src, join(outDir, file));
 	}
+}
+
+// dev 모드 전용: 정적 에셋(styles.css 등)은 esbuild 빌드 그래프에 없어
+// watch에 안 걸린다. 플러그인 폴더를 직접 감시해 에셋이 바뀌면 dist로 복사한다.
+// (디렉터리 감시라 에디터의 atomic save(rename)에도 동작한다.)
+function watchAssets(pluginDir, outDir) {
+	watch(pluginDir, { persistent: true }, (_event, filename) => {
+		if (!filename || !STATIC_ASSETS.includes(filename)) return;
+		const src = join(pluginDir, filename);
+		if (!existsSync(src)) return;
+		try {
+			copyFileSync(src, join(outDir, filename));
+			console.log(`[assets] copied ${filename}`);
+		} catch (err) {
+			console.error(`[assets] failed to copy ${filename}`, err);
+		}
+	});
 }
 
 /**
@@ -71,5 +90,6 @@ export async function createPluginBuild({ pluginDir, production = false }) {
 		await context.dispose();
 	} else {
 		await context.watch();
+		watchAssets(pluginDir, outDir);
 	}
 }

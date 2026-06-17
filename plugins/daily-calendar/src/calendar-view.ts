@@ -1,6 +1,7 @@
 import {
 	ItemView,
 	MarkdownView,
+	Notice,
 	TAbstractFile,
 	TFile,
 	WorkspaceLeaf,
@@ -9,6 +10,9 @@ import {
 	setIcon,
 } from "obsidian";
 import type MyPlugin from "./main";
+import { EventModal } from "./ui/event-modal";
+import { dailyNotePath as buildDailyNotePath } from "./daily-note-path";
+import { ensureParentFolders } from "./vault-utils";
 
 export const VIEW_TYPE_CALENDAR = "calendar-reborn-view";
 
@@ -59,8 +63,15 @@ interface CalendarEvent {
 	done: boolean;
 }
 
-/** 리스트 항목: `-`/`*`/`+` 불릿 + 선택적 `[ ]`/`[x]` 체크박스 */
-const LIST_ITEM_RE = /^\s*[-*+]\s+(\[[ xX]\]\s+)?(.*)$/;
+/**
+ * 최상위 리스트 항목: `-`/`*`/`+` 불릿 + 선택적 `[ ]`/`[x]` 체크박스.
+ * 줄 맨 앞이어야 하며(들여쓰기 없음), 들여쓴 하위 불릿(설명)은 일정으로 보지 않습니다.
+ */
+const LIST_ITEM_RE = /^[-*+]\s+(\[[ xX]\]\s+)?(.*)$/;
+/** 표시 제목에서 제거할 동기화 메타: 종일 표기 → 블록ID → [캘린더] 순으로 뒤에서 제거 */
+const ALLDAY_TAG_RE = /\s*\(종일\)\s*$/;
+const BLOCK_ID_TAG_RE = /\s*\^ic-[A-Za-z0-9]+\s*$/;
+const CAL_TAG_RE = /\s*\[[^\]]+\]\s*$/;
 /** 본문 맨 앞의 시각 표기: `HH:MM` 또는 `HH:MM-HH:MM` / `HH:MM~HH:MM` */
 const TIME_RE = /^(\d{1,2}:\d{2})(?:\s*[-~]\s*\d{1,2}:\d{2})?\s+(.*)$/;
 
@@ -104,6 +115,13 @@ function parseEvents(content: string): CalendarEvent[] {
 				title = timeMatch[2].trim();
 			}
 		}
+
+		// 동기화 메타데이터(종일 표기·블록ID·[캘린더])는 표시 제목에서 제거합니다.
+		title = title
+			.replace(ALLDAY_TAG_RE, "")
+			.replace(BLOCK_ID_TAG_RE, "")
+			.replace(CAL_TAG_RE, "")
+			.trim();
 
 		if (!title) return; // 제목이 없는 항목은 일정으로 보지 않습니다.
 
@@ -154,6 +172,11 @@ export class CalendarView extends ItemView {
 
 	async onClose() {
 		// registerEvent로 등록한 핸들러는 자동 정리됩니다.
+	}
+
+	/** 외부(플러그인)에서 강제로 다시 그릴 때 사용. */
+	forceRender() {
+		this.render();
 	}
 
 	/** 일정 폴더 내 파일이 바뀌면 달력을 다시 그립니다. */
@@ -261,6 +284,17 @@ export class CalendarView extends ItemView {
 			cls: "calendar-reborn-events-scroll",
 		});
 
+		// 셀 우상단 "+" 버튼: 해당 날짜에 새 일정 모달 열기.
+		const addBtn = cell.createEl("button", {
+			cls: "calendar-reborn-add-btn",
+			text: "+",
+			attr: { "aria-label": "새 일정" },
+		});
+		addBtn.addEventListener("click", (evt) => {
+			evt.stopPropagation();
+			this.openEventModal(cellDate);
+		});
+
 		// 클릭하면 해당 날짜의 데일리 노트를 생성/열기 합니다.
 		cell.addEventListener("click", () => {
 			void this.openDailyNote(cellDate);
@@ -268,6 +302,32 @@ export class CalendarView extends ItemView {
 
 		// 해당 날짜의 일정 목록을 비동기로 채웁니다.
 		void this.populateEvents(cellDate, cell, eventListScroll);
+	}
+
+	private openEventModal(date: Date) {
+		const settings = this.plugin.settings;
+		if (!settings.calendars.length) {
+			new Notice("설정에서 캘린더를 먼저 불러오세요.");
+			return;
+		}
+		new EventModal(
+			this.app,
+			settings.calendars,
+			settings.defaultCalendarId,
+			async (r) => {
+				await this.plugin.syncEngine().createEvent({
+					day: date,
+					title: r.title,
+					description: r.description,
+					startMinutes: r.startMinutes,
+					endMinutes: r.endMinutes,
+					allDay: r.allDay,
+					calendarId: r.calendarId,
+				});
+				await this.plugin.persistSyncState();
+				this.render();
+			},
+		).open();
 	}
 
 	private async populateEvents(
@@ -280,9 +340,12 @@ export class CalendarView extends ItemView {
 		);
 		if (!(file instanceof TFile)) return;
 
-		cell.addClass("has-note");
-
 		const events = parseEvents(await this.app.vault.cachedRead(file));
+		// 점은 "일정 있음"을 뜻한다. 노트가 비면(모든 일정 삭제) 점도 사라져야 하므로
+		// 파일 존재가 아니라 일정 개수로 has-note를 판단한다.
+		if (events.length === 0) return;
+
+		cell.addClass("has-note");
 		events.forEach((event) => {
 			this.renderEvent(eventList, date, event);
 		});
@@ -387,7 +450,7 @@ export class CalendarView extends ItemView {
 		const existing = this.app.vault.getAbstractFileByPath(path);
 		if (existing instanceof TFile) return existing;
 
-		await this.ensureFolder();
+		await ensureParentFolders(this.app.vault, path);
 		try {
 			return await this.app.vault.create(
 				path,
@@ -400,22 +463,10 @@ export class CalendarView extends ItemView {
 		}
 	}
 
-	/** 설정된 일정 폴더가 없으면 생성합니다. */
-	private async ensureFolder() {
-		const folder = this.plugin.settings.calendarFolder.trim();
-		if (!folder) return;
-		if (this.app.vault.getAbstractFileByPath(folder)) return;
-		try {
-			await this.app.vault.createFolder(folder);
-		} catch {
-			// 이미 존재하면 무시합니다.
-		}
-	}
-
 	private dailyNotePath(date: Date): string {
-		const folder = this.plugin.settings.calendarFolder.trim();
-		const fileName = `${formatDate(date)}.md`;
-		return normalizePath(folder ? `${folder}/${fileName}` : fileName);
+		return normalizePath(
+			buildDailyNotePath(this.plugin.settings.calendarFolder, formatDate(date)),
+		);
 	}
 
 	private dailyNoteTemplate(date: Date): string {

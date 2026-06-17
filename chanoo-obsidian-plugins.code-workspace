@@ -35,7 +35,8 @@
 		},
 		"files.associations": {
 			"*.css": "css"
-		}
+		},
+		"js/ts.tsdk.path": "🏠 root/node_modules/typescript/lib"
 	},
 	"extensions": {
 		"recommendations": [
