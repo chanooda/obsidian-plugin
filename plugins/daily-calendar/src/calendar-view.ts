@@ -1,6 +1,7 @@
 import {
 	ItemView,
 	MarkdownView,
+	Notice,
 	TAbstractFile,
 	TFile,
 	WorkspaceLeaf,
@@ -9,6 +10,7 @@ import {
 	setIcon,
 } from "obsidian";
 import type MyPlugin from "./main";
+import { EventModal } from "./ui/event-modal";
 
 export const VIEW_TYPE_CALENDAR = "calendar-reborn-view";
 
@@ -156,6 +158,11 @@ export class CalendarView extends ItemView {
 		// registerEvent로 등록한 핸들러는 자동 정리됩니다.
 	}
 
+	/** 외부(플러그인)에서 강제로 다시 그릴 때 사용. */
+	forceRender() {
+		this.render();
+	}
+
 	/** 일정 폴더 내 파일이 바뀌면 달력을 다시 그립니다. */
 	private registerVaultEvents() {
 		const refresh = (file: TAbstractFile) => {
@@ -261,6 +268,17 @@ export class CalendarView extends ItemView {
 			cls: "calendar-reborn-events-scroll",
 		});
 
+		// 셀 우상단 "+" 버튼: 해당 날짜에 새 일정 모달 열기.
+		const addBtn = cell.createEl("button", {
+			cls: "calendar-reborn-add-btn",
+			text: "+",
+			attr: { "aria-label": "새 일정" },
+		});
+		addBtn.addEventListener("click", (evt) => {
+			evt.stopPropagation();
+			this.openEventModal(cellDate);
+		});
+
 		// 클릭하면 해당 날짜의 데일리 노트를 생성/열기 합니다.
 		cell.addEventListener("click", () => {
 			void this.openDailyNote(cellDate);
@@ -268,6 +286,32 @@ export class CalendarView extends ItemView {
 
 		// 해당 날짜의 일정 목록을 비동기로 채웁니다.
 		void this.populateEvents(cellDate, cell, eventListScroll);
+	}
+
+	private openEventModal(date: Date) {
+		const settings = this.plugin.settings;
+		if (!settings.calendars.length) {
+			new Notice("설정에서 캘린더를 먼저 불러오세요.");
+			return;
+		}
+		new EventModal(
+			this.app,
+			settings.calendars,
+			settings.defaultCalendarId,
+			async (r) => {
+				await this.plugin.syncEngine().createEvent({
+					day: date,
+					title: r.title,
+					description: r.description,
+					startMinutes: r.startMinutes,
+					endMinutes: r.endMinutes,
+					allDay: r.allDay,
+					calendarId: r.calendarId,
+				});
+				await this.plugin.persistSyncState();
+				this.render();
+			},
+		).open();
 	}
 
 	private async populateEvents(

@@ -211,3 +211,22 @@ available in the app when your plugin is enabled.
 	background-color: transparent;
 	border-left: none;
 }
+
+.calendar-reborn-add-btn {
+	position: absolute;
+	top: 2px;
+	right: 2px;
+	opacity: 0;
+	border: none;
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-radius: 4px;
+	width: 18px;
+	height: 18px;
+	line-height: 1;
+	cursor: pointer;
+}
+
+.calendar-reborn-day-cell:hover .calendar-reborn-add-btn {
+	opacity: 1;
+}
