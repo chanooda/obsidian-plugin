@@ -128,6 +128,7 @@ available in the app when your plugin is enabled.
 	height: 5px;
 	border-radius: 50%;
 	background-color: var(--interactive-accent);
+	z-index: 1;
 }
 
 /* 오늘 — 날짜 숫자를 accent 원형으로 강조 */
@@ -213,20 +214,28 @@ available in the app when your plugin is enabled.
 }
 
 .calendar-reborn-add-btn {
+	all:unset;
 	position: absolute;
-	top: 2px;
-	right: 2px;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	bottom: 4px;
+	right: 4px;
 	opacity: 0;
 	border: none;
 	background: var(--interactive-accent);
 	color: var(--text-on-accent);
 	border-radius: 4px;
-	width: 18px;
-	height: 18px;
+	width: 24px;
+	height: 24px;
+	aspect-ratio: 1 / 1;
 	line-height: 1;
 	cursor: pointer;
+	flex-shrink: 1;
 }
 
 .calendar-reborn-day-cell:hover .calendar-reborn-add-btn {
 	opacity: 1;
 }
+
+
