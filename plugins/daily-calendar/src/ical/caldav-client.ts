@@ -1,6 +1,7 @@
 import type { CalendarRef } from "../types";
 import {
 	buildCalendarPropfind,
+	buildCalendarQuery,
 	buildSyncCollection,
 	parseCalendarList,
 	parseEventReport,
@@ -99,14 +100,26 @@ export class CalDavClient {
 	async fetchEvents(
 		calendar: CalendarRef,
 	): Promise<{ items: ReportItem[]; syncToken: string | undefined }> {
-		const res = await this.request(
-			calendar.id,
-			"REPORT",
-			{ Depth: "1" },
-			buildSyncCollection(calendar.syncToken),
-		);
-		const doc = this.deps.parseXml(res.text);
-		return { items: parseEventReport(doc), syncToken: parseSyncToken(doc) };
+		try {
+			const res = await this.request(
+				calendar.id,
+				"REPORT",
+				{ Depth: "1" },
+				buildSyncCollection(calendar.syncToken),
+			);
+			const doc = this.deps.parseXml(res.text);
+			return { items: parseEventReport(doc), syncToken: parseSyncToken(doc) };
+		} catch (_e) {
+			// iCloud가 sync-collection을 거부하는 경우 calendar-query로 전체 조회.
+			const res = await this.request(
+				calendar.id,
+				"REPORT",
+				{ Depth: "1" },
+				buildCalendarQuery(),
+			);
+			const doc = this.deps.parseXml(res.text);
+			return { items: parseEventReport(doc), syncToken: undefined };
+		}
 	}
 
 	/** ICS를 PUT으로 생성/갱신. ifMatch가 있으면 조건부. 새 etag 반환. */

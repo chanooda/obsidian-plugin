@@ -53,6 +53,8 @@ export interface SyncRecord {
 	calendarId: string;
 	/** iCloud ETag(변경 감지). */
 	etag: string;
+	/** CalDAV 리소스 경로(이벤트의 .ics href). 예: "/123/calendars/work/abc.ics" */
+	href: string;
 	/** 이 일정이 기록된 데일리 노트 경로. */
 	notePath: string;
 	/** 마지막 동기화 시점의 일정 스냅샷(3-way 비교 기준). */

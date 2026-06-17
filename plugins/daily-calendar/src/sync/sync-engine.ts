@@ -1,5 +1,5 @@
 import { Notice, TFile, type Vault } from "obsidian";
-import type { CalEvent, CalendarRef, NoteEvent, SyncRecord } from "../types";
+import type { CalEvent, CalendarRef, NoteEvent } from "../types";
 import { CalDavClient } from "../ical/caldav-client";
 import { buildICS, parseVEvent } from "../ical/ics";
 import { EventStore } from "./event-store";
@@ -63,6 +63,11 @@ export function calEventToNoteEvent(
 	};
 }
 
+/** 내용 기반 매칭 키(store 분실 시 재채택용). */
+function contentKey(calendarId: string, allDay: boolean, startISO: string, title: string): string {
+	return `${calendarId}|${allDay}|${startISO}|${title}`;
+}
+
 /** ISO yyyy-mm-dd 로컬 날짜 문자열. */
 function dayKey(d: Date): string {
 	const y = d.getFullYear();
@@ -72,12 +77,18 @@ function dayKey(d: Date): string {
 }
 
 let idCounter = 0;
-function genLocalId(): string {
+function randomToken(): string {
+	if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+		return crypto.randomUUID();
+	}
 	idCounter += 1;
-	return `ic-${Date.now().toString(36)}${idCounter.toString(36)}`;
+	return `${Date.now().toString(36)}${idCounter.toString(36)}`;
+}
+function genLocalId(): string {
+	return `ic-${randomToken().replace(/-/g, "").slice(0, 12)}`;
 }
 function genUid(): string {
-	return `${Date.now().toString(36)}-${Math.floor(idCounter++).toString(36)}@daily-calendar`;
+	return `${randomToken()}@daily-calendar`;
 }
 
 export interface SyncEngineConfig {
@@ -109,27 +120,28 @@ export class SyncEngine {
 		const f = this.config.folder.trim();
 		return f ? `${f}/${day}.md` : `${day}.md`;
 	}
-	private hrefFor(record: SyncRecord): string {
-		return `${record.calendarId}${encodeURIComponent(record.uid)}.ics`;
-	}
 
 	/** 전체 양방향 동기화 1회 실행. */
 	async syncAll(): Promise<void> {
 		try {
 			// 1) 원격 수집.
 			const remote: CalEvent[] = [];
+			const remoteMeta = new Map<string, { href: string; etag: string }>();
 			for (const cal of this.config.calendars) {
 				const { items, syncToken } = await this.client.fetchEvents(cal);
-				cal.syncToken = syncToken;
+				if (syncToken) cal.syncToken = syncToken; // 토큰 있을 때만 갱신(I5)
 				for (const it of items) {
 					if (it.deleted || !it.calendarData) continue;
 					const ev = parseVEvent(it.calendarData, cal.id);
-					if (ev) remote.push(ev);
+					if (ev) {
+						remote.push(ev);
+						remoteMeta.set(ev.uid, { href: it.href, etag: it.etag });
+					}
 				}
 			}
 
 			// 2) 로컬 수집(모든 데일리 노트).
-			const { local, hints, mtime } = await this.collectLocal();
+			const { local, hints, mtime } = await this.collectLocal(remote, remoteMeta);
 
 			// 3) reconcile.
 			const actions = reconcile({
@@ -142,7 +154,7 @@ export class SyncEngine {
 			// 4) 액션 실행.
 			for (const action of actions) {
 				if (action.type === "push") await this.doPush(action.event, hints.get(action.event.uid));
-				else if (action.type === "pull") await this.doPull(action.event);
+				else if (action.type === "pull") await this.doPull(action.event, remoteMeta.get(action.event.uid));
 				else if (action.type === "delete-remote") await this.doDeleteRemote(action.uid);
 				else if (action.type === "delete-local") await this.doDeleteLocal(action.uid);
 			}
@@ -155,7 +167,10 @@ export class SyncEngine {
 		}
 	}
 
-	private async collectLocal(): Promise<{
+	private async collectLocal(
+		remote: CalEvent[],
+		remoteMeta: Map<string, { href: string; etag: string }>,
+	): Promise<{
 		local: CalEvent[];
 		hints: Map<string, { newLocalId: string; notePath: string }>;
 		mtime: Date;
@@ -163,6 +178,16 @@ export class SyncEngine {
 		const local: CalEvent[] = [];
 		const hints = new Map<string, { newLocalId: string; notePath: string }>();
 		let mtime = new Date(0);
+
+		// 내용 키 → 원격 이벤트(재채택 매칭용).
+		const remoteByKey = new Map<string, CalEvent>();
+		for (const ev of remote) {
+			remoteByKey.set(
+				contentKey(ev.calendarId, ev.allDay, ev.start.toISOString(), ev.title),
+				ev,
+			);
+		}
+
 		const folder = this.config.folder.trim();
 		const files = this.vault.getMarkdownFiles().filter((f) =>
 			folder ? f.path.startsWith(`${folder}/`) : true,
@@ -174,13 +199,50 @@ export class SyncEngine {
 			const content = await this.vault.cachedRead(file);
 			const dayDate = new Date(`${day}T00:00:00`);
 			for (const ne of parseNoteEvents(content)) {
-				const rec = ne.localId ? this.store.byLocalId(ne.localId) : undefined;
-				const uid = rec?.uid ?? genUid();
 				const calId = this.calIdByName(ne.calendarName);
-				local.push(noteEventToCalEvent(ne, dayDate, uid, calId));
-				if (!ne.localId) {
-					hints.set(uid, { newLocalId: genLocalId(), notePath: file.path });
+				const rec = ne.localId ? this.store.byLocalId(ne.localId) : undefined;
+
+				if (rec) {
+					// 정상: 기존 매핑 사용.
+					local.push(noteEventToCalEvent(ne, dayDate, rec.uid, calId));
+					continue;
 				}
+
+				// 신규 후보 이벤트(아직 uid 미정).
+				const candidate = noteEventToCalEvent(ne, dayDate, "", calId);
+
+				if (ne.localId) {
+					// 블록ID는 있는데 store 기록 없음(분실/새 기기).
+					// 내용으로 원격과 매칭되면 그 매핑을 재채택(중복 방지).
+					const key = contentKey(calId, candidate.allDay, candidate.start.toISOString(), candidate.title);
+					const matched = remoteByKey.get(key);
+					if (matched) {
+						const meta = remoteMeta.get(matched.uid);
+						this.store.put({
+							uid: matched.uid,
+							localId: ne.localId,
+							calendarId: matched.calendarId,
+							etag: meta?.etag ?? "",
+							href:
+								meta?.href ??
+								`${matched.calendarId}${encodeURIComponent(matched.uid)}.ics`,
+							notePath: file.path,
+							snapshot: snapshotOf(matched),
+						});
+						local.push({ ...candidate, uid: matched.uid });
+						continue;
+					}
+					// 원격에 없으면 신규로 push하되, 기존 블록ID를 그대로 재사용(마크다운 중복 방지).
+					const uid = genUid();
+					hints.set(uid, { newLocalId: ne.localId, notePath: file.path });
+					local.push({ ...candidate, uid });
+					continue;
+				}
+
+				// 블록ID 자체가 없는 완전 신규 줄.
+				const uid = genUid();
+				hints.set(uid, { newLocalId: genLocalId(), notePath: file.path });
+				local.push({ ...candidate, uid });
 			}
 		}
 		return { local, hints, mtime };
@@ -193,8 +255,9 @@ export class SyncEngine {
 		const existing = this.store.byUid(event.uid);
 		const localId = existing?.localId ?? hint?.newLocalId ?? genLocalId();
 		const ics = buildICS(event);
-		const href = `${event.calendarId}${encodeURIComponent(event.uid)}.ics`;
-		const { etag } = await this.client.putEvent(href, ics, existing?.etag);
+		const href =
+			existing?.href ?? `${event.calendarId}${encodeURIComponent(event.uid)}.ics`;
+		const { etag } = await this.client.putEvent(href, ics, existing?.etag || undefined);
 
 		const notePath =
 			existing?.notePath ?? hint?.notePath ?? this.notePath(dayKey(event.start));
@@ -206,12 +269,16 @@ export class SyncEngine {
 			localId,
 			calendarId: event.calendarId,
 			etag,
+			href,
 			notePath,
 			snapshot: snapshotOf(event),
 		});
 	}
 
-	private async doPull(event: CalEvent): Promise<void> {
+	private async doPull(
+		event: CalEvent,
+		meta?: { href: string; etag: string },
+	): Promise<void> {
 		const existing = this.store.byUid(event.uid);
 		const localId = existing?.localId ?? genLocalId();
 		const notePath = this.notePath(dayKey(event.start));
@@ -222,7 +289,11 @@ export class SyncEngine {
 			uid: event.uid,
 			localId,
 			calendarId: event.calendarId,
-			etag: existing?.etag ?? "",
+			etag: meta?.etag ?? existing?.etag ?? "",
+			href:
+				meta?.href ??
+				existing?.href ??
+				`${event.calendarId}${encodeURIComponent(event.uid)}.ics`,
 			notePath,
 			snapshot: snapshotOf(event),
 		});
@@ -231,7 +302,7 @@ export class SyncEngine {
 	private async doDeleteRemote(uid: string): Promise<void> {
 		const rec = this.store.byUid(uid);
 		if (!rec) return;
-		await this.client.deleteEvent(this.hrefFor(rec), rec.etag);
+		await this.client.deleteEvent(rec.href, rec.etag || undefined);
 		this.store.remove(uid);
 	}
 

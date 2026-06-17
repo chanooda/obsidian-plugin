@@ -8,6 +8,7 @@ function record(uid: string, localId: string): SyncRecord {
 		localId,
 		calendarId: "/cal/work/",
 		etag: "etag-1",
+		href: "/cal/work/x.ics",
 		notePath: "Daily/2026-06-17.md",
 		snapshot: {
 			title: "회의",

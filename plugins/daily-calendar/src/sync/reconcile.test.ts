@@ -21,6 +21,7 @@ function rec(uid: string, snapshotTitle: string): SyncRecord {
 		localId: `ic-${uid}`,
 		calendarId: "/cal/work/",
 		etag: "e1",
+		href: "/cal/work/x.ics",
 		notePath: "Daily/2026-06-17.md",
 		snapshot: {
 			title: snapshotTitle,

@@ -1,7 +1,9 @@
 import type { CalendarRef } from "../types";
 
-/** 시간 범위로 VEVENT를 조회하는 calendar-query REPORT 본문. */
-export function buildCalendarQuery(startUTC: string, endUTC: string): string {
+/** VEVENT를 조회하는 calendar-query REPORT 본문. 범위를 모두 주면 time-range로 제한. */
+export function buildCalendarQuery(startUTC?: string, endUTC?: string): string {
+	const range =
+		startUTC && endUTC ? `<c:time-range start="${startUTC}" end="${endUTC}"/>` : "";
 	return `<?xml version="1.0" encoding="utf-8"?>
 <c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
   <d:prop>
@@ -11,7 +13,7 @@ export function buildCalendarQuery(startUTC: string, endUTC: string): string {
   <c:filter>
     <c:comp-filter name="VCALENDAR">
       <c:comp-filter name="VEVENT">
-        <c:time-range start="${startUTC}" end="${endUTC}"/>
+        ${range}
       </c:comp-filter>
     </c:comp-filter>
   </c:filter>

@@ -24,7 +24,7 @@ export function parseVEvent(ics: string, calendarId: string): CalEvent | null {
 		title: event.summary ?? "",
 		description: event.description ?? "",
 		start: startTime.toJSDate(),
-		end: endTime ? endTime.toJSDate() : null,
+		end: allDay ? null : endTime ? endTime.toJSDate() : null,
 		allDay,
 		calendarId,
 		lastModified,
