@@ -19,3 +19,10 @@ data.json
 
 # os
 .DS_Store
+
+.env
+.env.local
+.env.production
+.evn.development
+.env.dev
+.env.prod
