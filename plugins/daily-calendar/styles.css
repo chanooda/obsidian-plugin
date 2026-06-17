@@ -1,0 +1,213 @@
+/*
+This CSS file will be included with your plugin, and
+available in the app when your plugin is enabled.
+*/
+
+.my-plugin-ribbon-class {
+	color: var(--text-accent);
+}
+
+.calendar-reborn-view {
+	min-width: 960px;
+	padding: 16px;
+	margin: 0 auto;
+}
+
+/* 헤더: 제목 + 네비게이션 */
+.calendar-reborn-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 16px;
+}
+
+.calendar-reborn-title {
+	font-size: var(--font-ui-large);
+	font-weight: var(--font-bold);
+	color: var(--text-normal);
+}
+
+.calendar-reborn-nav {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.calendar-reborn-nav-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border-radius: var(--radius-s);
+	background-color: transparent;
+	color: var(--text-muted);
+	cursor: pointer;
+	box-shadow: none;
+	transition:
+		background-color 0.12s ease,
+		color 0.12s ease;
+}
+
+.calendar-reborn-nav-btn:hover {
+	background-color: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+/* 그리드 */
+.calendar-reborn-grid {
+	display: grid;
+	grid-template-columns: repeat(7, 1fr);
+	gap: 2px;
+}
+
+.calendar-reborn-weekday {
+	text-align: center;
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-semibold);
+	color: var(--text-muted);
+	padding: 6px 0;
+}
+
+.calendar-reborn-day-cell {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	aspect-ratio: 1 / 1;
+	gap: 3px;
+	min-height: 96px;
+	padding: 4px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	cursor: pointer;
+	transition: background-color 0.12s ease;
+}
+
+.calendar-reborn-day-cell:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+/* 날짜 숫자 */
+.calendar-reborn-day-text {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	align-self: flex-start;
+	width: 24px;
+	height: 24px;
+	font-size: var(--font-ui-small);
+	color: var(--text-normal);
+	border-radius: 50%;
+	flex-shrink: 0;
+}
+
+/* 주말 색상 */
+.calendar-reborn-weekday.is-sunday,
+.calendar-reborn-day-text.is-sunday {
+	color: var(--color-red);
+}
+
+.calendar-reborn-weekday.is-saturday,
+.calendar-reborn-day-text.is-saturday {
+	color: var(--color-blue);
+}
+
+/* 인접 달(이전/다음)의 날짜는 흐리게 */
+.calendar-reborn-day-cell.is-adjacent .calendar-reborn-day-text {
+	color: var(--text-faint);
+}
+
+/* 노트가 있는 날 — 셀 우상단에 작은 점 표시 */
+.calendar-reborn-day-cell.has-note::after {
+	content: "";
+	position: absolute;
+	top: 9px;
+	right: 8px;
+	width: 5px;
+	height: 5px;
+	border-radius: 50%;
+	background-color: var(--interactive-accent);
+}
+
+/* 오늘 — 날짜 숫자를 accent 원형으로 강조 */
+.calendar-reborn-day-cell.is-today .calendar-reborn-day-text {
+	background-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+	font-weight: var(--font-bold);
+}
+
+/* 일정 목록 */
+.calendar-reborn-events {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	overflow-y: auto;
+	height: 100%;
+	margin-top: 4px;
+}
+
+.calendar-reborn-events-scroll {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.calendar-reborn-event {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 4px;
+	font-size: var(--font-ui-smaller);
+	line-height: 1.4;
+	color: var(--text-normal);
+	background-color: var(--background-secondary);
+	border-left: 2px solid var(--interactive-accent);
+	border-radius: var(--radius-s);
+	overflow: hidden;
+}
+
+/* 할 일 체크박스 */
+.calendar-reborn-event-check {
+	flex-shrink: 0;
+	width: 12px;
+	height: 12px;
+	margin: 0;
+	cursor: pointer;
+}
+
+/* 시간 배지 */
+.calendar-reborn-event-time {
+	flex-shrink: 0;
+	font-weight: var(--font-semibold);
+	font-variant-numeric: tabular-nums;
+	color: var(--text-accent);
+}
+
+.calendar-reborn-event-title {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* 할 일 항목은 좌측 보더를 녹색으로 구분 */
+.calendar-reborn-event.is-todo {
+	border-left-color: var(--color-green);
+}
+
+/* 완료된 할 일 — 취소선 + 흐리게 */
+.calendar-reborn-event.is-done .calendar-reborn-event-title {
+	text-decoration: line-through;
+	color: var(--text-faint);
+}
+
+.calendar-reborn-event.is-done .calendar-reborn-event-time {
+	color: var(--text-faint);
+}
+
+.calendar-reborn-event.is-more {
+	padding-left: 4px;
+	color: var(--text-muted);
+	background-color: transparent;
+	border-left: none;
+}

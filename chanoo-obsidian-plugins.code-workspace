@@ -1,0 +1,46 @@
+{
+	"folders": [
+		{
+			"name": "🏠 root",
+			"path": "."
+		},
+		{
+			"name": "⚙️ config",
+			"path": "packages/config"
+		},
+		{
+			"name": "📦 shared",
+			"path": "packages/shared"
+		},
+		{
+			"name": "📅 daily-calendar",
+			"path": "plugins/daily-calendar"
+		},
+		{
+			"name": "👋 hello-world",
+			"path": "plugins/hello-world"
+		}
+	],
+	"settings": {
+		"editor.insertSpaces": false,
+		"editor.detectIndentation": false,
+		"files.exclude": {
+			"**/.turbo": true
+		},
+		"search.exclude": {
+			"**/node_modules": true,
+			"**/dist": true,
+			"**/.turbo": true,
+			"**/pnpm-lock.yaml": true
+		},
+		"files.associations": {
+			"*.css": "css"
+		}
+	},
+	"extensions": {
+		"recommendations": [
+			"dbaeumer.vscode-eslint",
+			"esbenp.prettier-vscode"
+		]
+	}
+}

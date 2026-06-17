@@ -1,0 +1,11 @@
+{
+	"id": "hello-world",
+	"name": "Hello World",
+	"version": "1.0.0",
+	"minAppVersion": "1.5.0",
+	"description": "Example plugin demonstrating the monorepo shared library.",
+	"author": "smiledragon-fe",
+	"authorUrl": "",
+	"fundingUrl": "",
+	"isDesktopOnly": false
+}

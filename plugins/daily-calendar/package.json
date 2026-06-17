@@ -1,0 +1,20 @@
+{
+	"name": "daily-calendar",
+	"version": "1.0.0",
+	"private": true,
+	"description": "Calendar and daily-note plugin for Obsidian.",
+	"author": "smiledragon-fe",
+	"license": "MIT",
+	"scripts": {
+		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"dev": "node esbuild.config.mjs",
+		"clean": "rm -rf dist"
+	},
+	"devDependencies": {
+		"@repo/config": "workspace:*",
+		"@repo/shared": "workspace:*",
+		"obsidian": "latest",
+		"tslib": "^2.6.2",
+		"typescript": "^5.4.0"
+	}
+}

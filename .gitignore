@@ -1,0 +1,21 @@
+# dependencies
+node_modules
+
+# build output
+dist
+main.js
+*.js.map
+
+# turbo
+.turbo
+
+# obsidian runtime
+data.json
+
+# editors
+.idea
+*.iml
+.vscode
+
+# os
+.DS_Store

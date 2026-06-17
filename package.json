@@ -1,0 +1,20 @@
+{
+	"name": "chanoo-obsidian-plugins",
+	"private": true,
+	"version": "0.0.0",
+	"description": "Monorepo of Obsidian plugins, managed with Turborepo + pnpm.",
+	"packageManager": "pnpm@10.32.1",
+	"scripts": {
+		"build": "turbo run build",
+		"dev": "turbo run dev",
+		"lint": "turbo run lint",
+		"clean": "turbo run clean",
+		"deploy:vault": "node scripts/deploy.mjs",
+		"build:deploy": "turbo run build && node scripts/deploy.mjs"
+	},
+	"devDependencies": {
+		"@types/node": "^20.11.0",
+		"turbo": "^2.3.0",
+		"typescript": "^5.4.0"
+	}
+}

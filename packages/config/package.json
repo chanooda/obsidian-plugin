@@ -1,0 +1,14 @@
+{
+	"name": "@repo/config",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		"./esbuild": "./esbuild.base.mjs",
+		"./tsconfig.json": "./tsconfig.json"
+	},
+	"dependencies": {
+		"builtin-modules": "^3.3.0",
+		"esbuild": "^0.20.0"
+	}
+}
