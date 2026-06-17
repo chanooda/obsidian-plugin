@@ -11,6 +11,8 @@ import {
 } from "obsidian";
 import type MyPlugin from "./main";
 import { EventModal } from "./ui/event-modal";
+import { dailyNotePath as buildDailyNotePath } from "./daily-note-path";
+import { ensureParentFolders } from "./vault-utils";
 
 export const VIEW_TYPE_CALENDAR = "calendar-reborn-view";
 
@@ -445,7 +447,7 @@ export class CalendarView extends ItemView {
 		const existing = this.app.vault.getAbstractFileByPath(path);
 		if (existing instanceof TFile) return existing;
 
-		await this.ensureFolder();
+		await ensureParentFolders(this.app.vault, path);
 		try {
 			return await this.app.vault.create(
 				path,
@@ -458,22 +460,10 @@ export class CalendarView extends ItemView {
 		}
 	}
 
-	/** 설정된 일정 폴더가 없으면 생성합니다. */
-	private async ensureFolder() {
-		const folder = this.plugin.settings.calendarFolder.trim();
-		if (!folder) return;
-		if (this.app.vault.getAbstractFileByPath(folder)) return;
-		try {
-			await this.app.vault.createFolder(folder);
-		} catch {
-			// 이미 존재하면 무시합니다.
-		}
-	}
-
 	private dailyNotePath(date: Date): string {
-		const folder = this.plugin.settings.calendarFolder.trim();
-		const fileName = `${formatDate(date)}.md`;
-		return normalizePath(folder ? `${folder}/${fileName}` : fileName);
+		return normalizePath(
+			buildDailyNotePath(this.plugin.settings.calendarFolder, formatDate(date)),
+		);
 	}
 
 	private dailyNoteTemplate(date: Date): string {

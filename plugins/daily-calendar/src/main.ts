@@ -1,4 +1,4 @@
-import { Notice, Plugin, requestUrl } from "obsidian";
+import { Notice, Plugin, TFile, requestUrl } from "obsidian";
 import { CalendarView, VIEW_TYPE_CALENDAR } from "./calendar-view";
 import {
 	CalendarSettingTab,
@@ -7,6 +7,8 @@ import {
 } from "./settings";
 import type { CalendarRef } from "./types";
 import { CalDavClient, type HttpResponse } from "./ical/caldav-client";
+import { dailyNotePath, flatDailyNoteKey } from "./daily-note-path";
+import { ensureParentFolders } from "./vault-utils";
 import { EventStore } from "./sync/event-store";
 import { SyncEngine } from "./sync/sync-engine";
 
@@ -37,6 +39,46 @@ export default class MyPlugin extends Plugin {
 
 		this.addSettingTab(new CalendarSettingTab(this.app, this));
 		this.restartSyncTimer();
+
+		// 레이아웃이 준비되면 평평한 데일리 노트를 연/월 폴더 구조로 이동.
+		this.app.workspace.onLayoutReady(() => {
+			void this.migrateFolderStructure();
+		});
+	}
+
+	/**
+	 * 설정 폴더 바로 아래 평평하게 놓인 데일리 노트(YYYY-MM-DD.md)를
+	 * 연/월 폴더(`YYYY/YYYY-MM/`)로 이동한다. 멱등적이라 매번 안전하게 호출 가능.
+	 */
+	async migrateFolderStructure(): Promise<void> {
+		const folder = this.settings.calendarFolder;
+		const moves: { file: TFile; from: string; to: string }[] = [];
+		for (const file of this.app.vault.getMarkdownFiles()) {
+			const dayKey = flatDailyNoteKey(folder, file.path);
+			if (!dayKey) continue;
+			const to = dailyNotePath(folder, dayKey);
+			if (to !== file.path) moves.push({ file, from: file.path, to });
+		}
+		if (!moves.length) return;
+
+		for (const mv of moves) {
+			try {
+				await ensureParentFolders(this.app.vault, mv.to);
+				await this.app.fileManager.renameFile(mv.file, mv.to);
+			} catch (e) {
+				console.error(`노트 이동 실패: ${mv.from} → ${mv.to}`, e);
+			}
+		}
+
+		// 이동된 경로를 동기화 레코드에 반영.
+		const fromTo = new Map(moves.map((m) => [m.from, m.to]));
+		for (const rec of this.store.all()) {
+			const to = fromTo.get(rec.notePath);
+			if (to) this.store.put({ ...rec, notePath: to });
+		}
+		await this.persistSyncState();
+		this.refreshCalendarViews();
+		new Notice(`데일리 노트 ${moves.length}개를 연/월 폴더로 정리했습니다.`);
 	}
 
 	onunload() {

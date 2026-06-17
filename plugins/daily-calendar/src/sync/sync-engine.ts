@@ -2,6 +2,8 @@ import { Notice, TFile, type Vault } from "obsidian";
 import type { CalEvent, CalendarRef, NoteEvent } from "../types";
 import { CalDavClient } from "../ical/caldav-client";
 import { buildICS, parseVEvent } from "../ical/ics";
+import { dailyNotePath } from "../daily-note-path";
+import { ensureParentFolders } from "../vault-utils";
 import { EventStore } from "./event-store";
 import { reconcile, snapshotOf } from "./reconcile";
 import {
@@ -137,8 +139,7 @@ export class SyncEngine {
 		);
 	}
 	private notePath(day: string): string {
-		const f = this.config.folder.trim();
-		return f ? `${f}/${day}.md` : `${day}.md`;
+		return dailyNotePath(this.config.folder, day);
 	}
 
 	/** 전체 양방향 동기화 1회 실행. */
@@ -352,13 +353,14 @@ export class SyncEngine {
 		this.store.remove(uid);
 	}
 
-	/** 파일을 읽어 transform 적용 후 저장(없으면 생성). */
+	/** 파일을 읽어 transform 적용 후 저장(없으면 상위 폴더까지 만들고 생성). */
 	private async writeNote(path: string, transform: (c: string) => string): Promise<void> {
 		const file = this.vault.getAbstractFileByPath(path);
 		if (file instanceof TFile) {
 			const content = await this.vault.read(file);
 			await this.vault.modify(file, transform(content));
 		} else {
+			await ensureParentFolders(this.vault, path);
 			await this.vault.create(path, transform(`# ${path.replace(/.*\//, "").replace(/\.md$/, "")}\n`));
 		}
 	}
