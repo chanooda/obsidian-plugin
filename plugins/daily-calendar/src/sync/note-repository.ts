@@ -110,3 +110,83 @@ export function parseNoteEvents(content: string): NoteEvent[] {
 
 	return events;
 }
+
+function fromMinutes(min: number): string {
+	const h = String(Math.floor(min / 60)).padStart(2, "0");
+	const m = String(min % 60).padStart(2, "0");
+	return `${h}:${m}`;
+}
+
+/** NoteEvent → 마크다운 줄 배열(첫 줄 + 설명 하위 불릿). */
+export function renderEventLines(event: NoteEvent): string[] {
+	let head = "- ";
+	if (!event.allDay && event.startMinutes !== null) {
+		head += fromMinutes(event.startMinutes);
+		if (event.endMinutes !== null) head += `-${fromMinutes(event.endMinutes)}`;
+		head += " ";
+	}
+	head += event.title;
+	if (event.calendarName) head += ` [${event.calendarName}]`;
+	if (event.localId) head += ` ^${event.localId}`;
+	if (event.allDay) head += " (종일)";
+
+	const lines = [head];
+	if (event.description) {
+		for (const d of event.description.split("\n")) {
+			lines.push(`\t- ${d}`);
+		}
+	}
+	return lines;
+}
+
+/** "## 일정" 섹션의 [start, end) 줄 범위를 반환한다. 없으면 null. */
+function findSection(lines: string[]): { start: number; end: number } | null {
+	for (let i = 0; i < lines.length; i++) {
+		if (SECTION_RE.test(lines[i])) {
+			let end = lines.length;
+			for (let j = i + 1; j < lines.length; j++) {
+				if (ANY_HEADING_RE.test(lines[j])) {
+					end = j;
+					break;
+				}
+			}
+			return { start: i + 1, end };
+		}
+	}
+	return null;
+}
+
+/** localId 일치 블록이 있으면 교체, 없으면 일정 섹션 끝에 추가한다. */
+export function upsertEvent(content: string, event: NoteEvent): string {
+	const lines = content.split("\n");
+	const newLines = renderEventLines(event);
+
+	if (event.localId) {
+		const existing = parseNoteEvents(content).find(
+			(e) => e.localId === event.localId,
+		);
+		if (existing) {
+			lines.splice(existing.startLine, existing.endLine - existing.startLine, ...newLines);
+			return lines.join("\n");
+		}
+	}
+
+	let section = findSection(lines);
+	if (!section) {
+		// 섹션이 없으면 본문 끝에 생성.
+		if (lines.length && lines[lines.length - 1] !== "") lines.push("");
+		lines.push("## 일정", "");
+		section = { start: lines.length, end: lines.length };
+	}
+	lines.splice(section.end, 0, ...newLines);
+	return lines.join("\n");
+}
+
+/** localId 블록을 제거한다(없으면 원본 그대로). */
+export function removeEvent(content: string, localId: string): string {
+	const existing = parseNoteEvents(content).find((e) => e.localId === localId);
+	if (!existing) return content;
+	const lines = content.split("\n");
+	lines.splice(existing.startLine, existing.endLine - existing.startLine);
+	return lines.join("\n");
+}
