@@ -61,8 +61,15 @@ interface CalendarEvent {
 	done: boolean;
 }
 
-/** 리스트 항목: `-`/`*`/`+` 불릿 + 선택적 `[ ]`/`[x]` 체크박스 */
-const LIST_ITEM_RE = /^\s*[-*+]\s+(\[[ xX]\]\s+)?(.*)$/;
+/**
+ * 최상위 리스트 항목: `-`/`*`/`+` 불릿 + 선택적 `[ ]`/`[x]` 체크박스.
+ * 줄 맨 앞이어야 하며(들여쓰기 없음), 들여쓴 하위 불릿(설명)은 일정으로 보지 않습니다.
+ */
+const LIST_ITEM_RE = /^[-*+]\s+(\[[ xX]\]\s+)?(.*)$/;
+/** 표시 제목에서 제거할 동기화 메타: 종일 표기 → 블록ID → [캘린더] 순으로 뒤에서 제거 */
+const ALLDAY_TAG_RE = /\s*\(종일\)\s*$/;
+const BLOCK_ID_TAG_RE = /\s*\^ic-[A-Za-z0-9]+\s*$/;
+const CAL_TAG_RE = /\s*\[[^\]]+\]\s*$/;
 /** 본문 맨 앞의 시각 표기: `HH:MM` 또는 `HH:MM-HH:MM` / `HH:MM~HH:MM` */
 const TIME_RE = /^(\d{1,2}:\d{2})(?:\s*[-~]\s*\d{1,2}:\d{2})?\s+(.*)$/;
 
@@ -106,6 +113,13 @@ function parseEvents(content: string): CalendarEvent[] {
 				title = timeMatch[2].trim();
 			}
 		}
+
+		// 동기화 메타데이터(종일 표기·블록ID·[캘린더])는 표시 제목에서 제거합니다.
+		title = title
+			.replace(ALLDAY_TAG_RE, "")
+			.replace(BLOCK_ID_TAG_RE, "")
+			.replace(CAL_TAG_RE, "")
+			.trim();
 
 		if (!title) return; // 제목이 없는 항목은 일정으로 보지 않습니다.
 

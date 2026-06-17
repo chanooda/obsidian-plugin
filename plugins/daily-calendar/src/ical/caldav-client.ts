@@ -2,10 +2,8 @@ import type { CalendarRef } from "../types";
 import {
 	buildCalendarPropfind,
 	buildCalendarQuery,
-	buildSyncCollection,
 	parseCalendarList,
 	parseEventReport,
-	parseSyncToken,
 	type ReportItem,
 } from "./caldav-xml";
 
@@ -96,30 +94,25 @@ export class CalDavClient {
 		return cals;
 	}
 
-	/** sync-collection으로 증분(또는 전체) 이벤트와 새 sync-token을 받는다. */
+	/**
+	 * calendar-query REPORT로 주어진 시간 범위의 이벤트를 받는다.
+	 * iCloud의 sync-collection은 calendar-data를 인라인으로 주지 않는 경우가 있어
+	 * (href/etag만 반환) 이벤트가 누락된다. calendar-query는 calendar-data를
+	 * 항상 인라인으로 반환하므로 이를 기본 조회 방식으로 사용한다.
+	 * 범위를 주지 않으면 전체 이벤트를 조회한다. syncToken은 사용하지 않는다.
+	 */
 	async fetchEvents(
 		calendar: CalendarRef,
+		range?: { start: string; end: string },
 	): Promise<{ items: ReportItem[]; syncToken: string | undefined }> {
-		try {
-			const res = await this.request(
-				calendar.id,
-				"REPORT",
-				{ Depth: "1" },
-				buildSyncCollection(calendar.syncToken),
-			);
-			const doc = this.deps.parseXml(res.text);
-			return { items: parseEventReport(doc), syncToken: parseSyncToken(doc) };
-		} catch (_e) {
-			// iCloud가 sync-collection을 거부하는 경우 calendar-query로 전체 조회.
-			const res = await this.request(
-				calendar.id,
-				"REPORT",
-				{ Depth: "1" },
-				buildCalendarQuery(),
-			);
-			const doc = this.deps.parseXml(res.text);
-			return { items: parseEventReport(doc), syncToken: undefined };
-		}
+		const res = await this.request(
+			calendar.id,
+			"REPORT",
+			{ Depth: "1" },
+			buildCalendarQuery(range?.start, range?.end),
+		);
+		const doc = this.deps.parseXml(res.text);
+		return { items: parseEventReport(doc), syncToken: undefined };
 	}
 
 	/** ICS를 PUT으로 생성/갱신. ifMatch가 있으면 조건부. 새 etag 반환. */

@@ -76,6 +76,26 @@ function dayKey(d: Date): string {
 	return `${y}-${m}-${day}`;
 }
 
+/** Date를 CalDAV time-range용 UTC 문자열(YYYYMMDDTHHMMSSZ)로 변환. */
+function toCalDavUTC(d: Date): string {
+	const p = (n: number) => String(n).padStart(2, "0");
+	return (
+		`${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}` +
+		`T${p(d.getUTCHours())}${p(d.getUTCMinutes())}${p(d.getUTCSeconds())}Z`
+	);
+}
+
+/**
+ * 동기화 시간 창을 계산한다. 너무 넓으면 과거 일정까지 노트로 쏟아지므로
+ * 과거 3개월 ~ 미래 12개월로 제한한다. 로컬·원격 모두 이 창으로 필터해야
+ * 창 밖 일정이 "삭제됨"으로 오인되지 않는다(데이터 손실 방지).
+ */
+function syncWindow(now: Date): { startDay: Date; endDay: Date } {
+	const startDay = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+	const endDay = new Date(now.getFullYear(), now.getMonth() + 13, 0);
+	return { startDay, endDay };
+}
+
 let idCounter = 0;
 function randomToken(): string {
 	if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -124,24 +144,38 @@ export class SyncEngine {
 	/** 전체 양방향 동기화 1회 실행. */
 	async syncAll(): Promise<void> {
 		try {
-			// 1) 원격 수집.
+			const { startDay, endDay } = syncWindow(new Date());
+			const range = {
+				start: toCalDavUTC(startDay),
+				end: toCalDavUTC(new Date(endDay.getTime() + 24 * 60 * 60 * 1000)),
+			};
+
+			// 1) 원격 수집(시간 창 내). 한 캘린더 실패가 전체를 막지 않게 격리.
 			const remote: CalEvent[] = [];
 			const remoteMeta = new Map<string, { href: string; etag: string }>();
 			for (const cal of this.config.calendars) {
-				const { items, syncToken } = await this.client.fetchEvents(cal);
-				if (syncToken) cal.syncToken = syncToken; // 토큰 있을 때만 갱신(I5)
-				for (const it of items) {
-					if (it.deleted || !it.calendarData) continue;
-					const ev = parseVEvent(it.calendarData, cal.id);
-					if (ev) {
-						remote.push(ev);
-						remoteMeta.set(ev.uid, { href: it.href, etag: it.etag });
+				try {
+					const { items } = await this.client.fetchEvents(cal, range);
+					for (const it of items) {
+						if (it.deleted || !it.calendarData) continue;
+						const ev = parseVEvent(it.calendarData, cal.id);
+						if (ev) {
+							remote.push(ev);
+							remoteMeta.set(ev.uid, { href: it.href, etag: it.etag });
+						}
 					}
+				} catch (e) {
+					console.error(`캘린더 "${cal.name}" 조회 실패`, e);
 				}
 			}
 
-			// 2) 로컬 수집(모든 데일리 노트).
-			const { local, hints, mtime } = await this.collectLocal(remote, remoteMeta);
+			// 2) 로컬 수집(시간 창 내 데일리 노트).
+			const { local, hints, mtime } = await this.collectLocal(
+				remote,
+				remoteMeta,
+				startDay,
+				endDay,
+			);
 
 			// 3) reconcile.
 			const actions = reconcile({
@@ -170,6 +204,8 @@ export class SyncEngine {
 	private async collectLocal(
 		remote: CalEvent[],
 		remoteMeta: Map<string, { href: string; etag: string }>,
+		startDay: Date,
+		endDay: Date,
 	): Promise<{
 		local: CalEvent[];
 		hints: Map<string, { newLocalId: string; notePath: string }>;
@@ -195,9 +231,12 @@ export class SyncEngine {
 		for (const file of files) {
 			const day = file.basename; // YYYY-MM-DD
 			if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
+			const dayDate = new Date(`${day}T00:00:00`);
+			// 시간 창 밖의 노트는 원격 조회 범위 밖이므로 reconcile에서 제외한다
+			// (창 밖 일정이 "원격에 없음 → 삭제"로 오인되는 것을 막는다).
+			if (dayDate < startDay || dayDate > endDay) continue;
 			if (file.stat.mtime > mtime.getTime()) mtime = new Date(file.stat.mtime);
 			const content = await this.vault.cachedRead(file);
-			const dayDate = new Date(`${day}T00:00:00`);
 			for (const ne of parseNoteEvents(content)) {
 				const calId = this.calIdByName(ne.calendarName);
 				const rec = ne.localId ? this.store.byLocalId(ne.localId) : undefined;
