@@ -1,0 +1,70 @@
+# main 갱신 시 빌드 산출물을 chanooda/obsidian vault로 배포한다.
+#
+# 사전 설정(1회):
+#   1. fine-grained PAT 발급 — Repository access: chanooda/obsidian만,
+#      Permissions: Contents = Read and write.
+#   2. 이 repo Settings → Secrets and variables → Actions에
+#      VAULT_REPO_TOKEN 이라는 이름으로 PAT 저장.
+name: Deploy plugins to vault
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "plugins/**"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+      - "scripts/publish-to-vault.mjs"
+      - ".github/workflows/deploy-vault.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-vault
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout monorepo
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build plugins
+        run: pnpm build
+
+      - name: Checkout vault repo
+        uses: actions/checkout@v4
+        with:
+          repository: chanooda/obsidian
+          token: ${{ secrets.VAULT_REPO_TOKEN }}
+          path: vault
+
+      - name: Publish built plugins into vault
+        run: node scripts/publish-to-vault.mjs vault
+
+      - name: Commit & push to vault
+        working-directory: vault
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .obsidian/plugins
+          if git diff --cached --quiet; then
+            echo "배포할 플러그인 변경 없음."
+            exit 0
+          fi
+          git commit -m "chore: sync plugins from monorepo ${{ github.sha }}"
+          git push

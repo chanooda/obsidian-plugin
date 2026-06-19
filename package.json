@@ -9,12 +9,14 @@
 		"dev": "turbo run dev",
 		"lint": "turbo run lint",
 		"clean": "turbo run clean",
+		"test": "vitest run scripts",
 		"deploy:vault": "node scripts/deploy.mjs",
 		"build:deploy": "turbo run build && node scripts/deploy.mjs"
 	},
 	"devDependencies": {
 		"@types/node": "^20.11.0",
 		"turbo": "^2.3.0",
-		"typescript": "^5.4.0"
+		"typescript": "^5.4.0",
+		"vitest": "^2.1.0"
 	}
 }
