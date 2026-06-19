@@ -4,7 +4,7 @@ import { formatDate, greeting } from "@repo/shared";
 export default class HelloWorldPlugin extends Plugin {
 	async onload() {
 		this.addRibbonIcon("smile", "Hello World", () => {
-			new Notice(greeting("Obsidian"));
+			new Notice(greeting("chanooda"));
 		});
 
 		this.addCommand({
