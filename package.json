@@ -10,8 +10,7 @@
 		"lint": "turbo run lint",
 		"clean": "turbo run clean",
 		"test": "vitest run scripts",
-		"deploy:vault": "node --env-file-if-exists=.env scripts/deploy.mjs",
-		"build:deploy": "turbo run build && node --env-file-if-exists=.env scripts/deploy.mjs"
+		"deploy:vault": "node --env-file-if-exists=.env scripts/deploy.mjs"
 	},
 	"devDependencies": {
 		"@types/node": "^20.11.0",

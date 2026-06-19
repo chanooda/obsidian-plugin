@@ -26,8 +26,7 @@ scripts/
 pnpm install                  # 의존성 설치
 pnpm build                    # 전체 빌드 (turbo, 의존성 순서)
 pnpm dev                      # 전체 watch 빌드
-pnpm deploy:vault             # 모든 플러그인 dist/를 테스트 vault에 심링크
-pnpm build:deploy             # 빌드 후 배포
+pnpm deploy:vault             # 테스트 vault에 각 플러그인 dist/를 심링크 (1회)
 OBSIDIAN_VAULT=/path pnpm deploy:vault   # 다른 테스트 vault로 1회 지정
 ```
 
@@ -38,13 +37,14 @@ OBSIDIAN_VAULT=/path pnpm deploy:vault   # 다른 테스트 vault로 1회 지정
 - **로컬 `deploy.mjs`는 테스트 vault 전용이다.** 실제 플러그인은 main 머지 시 CI(`.github/workflows/deploy-vault.yml` → `publish-to-vault.mjs`)만 배포한다.
 - `OBSIDIAN_VAULT`는 **필수**(default 없음). 미설정 시 배포가 중단된다 — 실수로 실제 vault에 심링크되는 걸 막기 위함.
 - 실제 배포 vault(`/Users/chan/Desktop/chanoo`)는 **차단**된다. `OBSIDIAN_VAULT`로 명시해도 거부한다(`deploy.mjs`의 `PRODUCTION_VAULT`).
-- 테스트 vault 경로는 `.env`(gitignore됨)에 `OBSIDIAN_VAULT=...`로 둔다. `deploy:vault`/`build:deploy`가 `--env-file-if-exists=.env`로 자동 로드한다.
+- 테스트 vault 경로는 `.env`(gitignore됨)에 `OBSIDIAN_VAULT=...`로 둔다. `deploy:vault`가 `--env-file-if-exists=.env`로 자동 로드한다.
+- 일상 작업은 `deploy:vault`로 심링크를 한 번 건 뒤 `pnpm dev`(watch 빌드)로 한다. 심링크는 `dist/`를 가리키므로 dev가 다시 빌드하면 Obsidian에 반영된다(리로드 필요). 새 플러그인 추가/심링크 깨짐 시에만 `deploy:vault`를 다시 실행한다.
 
 ## 모노레포 규칙
 
 - **공유 코드는 `@repo/shared`로.** 두 개 이상의 플러그인이 쓰는 로직은 `packages/shared/src`에 두고 import한다.
 - **빌드/타입 설정은 `@repo/config`로 통일.** 플러그인은 `esbuild.config.mjs`에서 `createPluginBuild`를, `tsconfig.json`에서 `@repo/config/tsconfig.json`을 extends 한다. 개별 플러그인에서 빌드 설정을 복제·분기하지 않는다.
-- **새 플러그인 추가**: `plugins/hello-world`를 복사 → `package.json`의 `name`과 `manifest.json`의 `id`/`name` 수정 → `pnpm install` → `pnpm build:deploy`.
+- **새 플러그인 추가**: `plugins/hello-world`를 복사 → `package.json`의 `name`과 `manifest.json`의 `id`/`name` 수정 → `pnpm install` → `pnpm build` → `pnpm deploy:vault`.
 - 워크스페이스 의존성은 `workspace:*`로 참조한다.
 
 ## 빌드 규약 (어기지 말 것)

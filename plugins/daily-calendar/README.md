@@ -195,7 +195,7 @@ main.ts (Plugin)
 
 ## 7. 사용법
 
-1. 빌드 후 vault에 설치 (루트 README의 `pnpm build:deploy` 참고).
+1. 빌드 후 vault에 설치 (루트 README의 `pnpm build` → `pnpm deploy:vault` 참고).
 2. 설정에서 캘린더 폴더, Apple ID, 앱 전용 비밀번호 입력.
 3. "캘린더 불러오기"로 iCloud 캘린더 목록 가져오기 → 기본 캘린더 선택.
 4. 리본의 캘린더 아이콘으로 월간 뷰 열기.
