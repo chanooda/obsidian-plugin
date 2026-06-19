@@ -43,11 +43,26 @@ pnpm build:deploy   # Build then deploy
 ## Vault location
 
 `scripts/deploy.mjs` links each plugin into
-`<vault>/.obsidian/plugins/<manifest.id>`. The vault path defaults to
-`/Users/chan/Desktop/chanoo` and can be overridden:
+`<vault>/.obsidian/plugins/<manifest.id>`. **Local deploy is for testing only.**
+
+- `OBSIDIAN_VAULT` is **required** (no default). If unset, deploy aborts — this
+  prevents accidentally linking into the real vault.
+- The production vault (`/Users/chan/Desktop/chanoo`) is **blocked**: even if you
+  point `OBSIDIAN_VAULT` at it, deploy refuses. The real vault is updated only by
+  CI on merge to `main` (`.github/workflows/deploy-vault.yml`).
+
+Set the test vault in `.env` (gitignored) once:
 
 ```bash
-OBSIDIAN_VAULT="/path/to/your/vault" pnpm deploy:vault
+# .env
+OBSIDIAN_VAULT=/Users/chan/Desktop/plugin-test
+```
+
+`pnpm deploy:vault` / `pnpm build:deploy` load `.env` automatically. To target a
+different test vault for a single run, override it:
+
+```bash
+OBSIDIAN_VAULT="/path/to/another/test-vault" pnpm deploy:vault
 ```
 
 ## Adding a new plugin
