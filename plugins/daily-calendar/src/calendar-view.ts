@@ -341,20 +341,12 @@ export class CalendarView extends ItemView {
 		if (!(file instanceof TFile)) return;
 
 		const events = parseEvents(await this.app.vault.cachedRead(file));
-		// 점은 "일정 있음"을 뜻한다. 노트가 비면(모든 일정 삭제) 점도 사라져야 하므로
-		// 파일 존재가 아니라 일정 개수로 has-note를 판단한다.
-		if (events.length === 0) return;
+		
 
 		cell.addClass("has-note");
 		events.forEach((event) => {
 			this.renderEvent(eventList, date, event);
 		});
-		// if (events.length > MAX_VISIBLE_EVENTS) {
-		// 	eventList.createDiv({
-		// 		cls: "calendar-reborn-event is-more",
-		// 		text: `+${events.length - MAX_VISIBLE_EVENTS}`,
-		// 	});
-		// }
 	}
 
 	private renderEvent(
@@ -471,9 +463,9 @@ export class CalendarView extends ItemView {
 
 	private dailyNoteTemplate(date: Date): string {
 		return [
-			`# ${formatDate(date)}`,
 			"",
 			'<!-- 일정: "- HH:MM 제목"  ·  할 일: "- [ ] HH:MM 제목" -->',
+			"## 일정",
 			"- ",
 		].join("\n");
 	}
