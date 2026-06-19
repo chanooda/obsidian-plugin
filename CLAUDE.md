@@ -26,12 +26,19 @@ scripts/
 pnpm install                  # 의존성 설치
 pnpm build                    # 전체 빌드 (turbo, 의존성 순서)
 pnpm dev                      # 전체 watch 빌드
-pnpm deploy:vault             # 모든 플러그인 dist/를 vault에 심링크
+pnpm deploy:vault             # 모든 플러그인 dist/를 테스트 vault에 심링크
 pnpm build:deploy             # 빌드 후 배포
-OBSIDIAN_VAULT=/path pnpm deploy:vault   # vault 경로 지정(기본: /Users/chan/Desktop/chanoo)
+OBSIDIAN_VAULT=/path pnpm deploy:vault   # 다른 테스트 vault로 1회 지정
 ```
 
 플러그인 하나만 작업할 때는 `pnpm --filter <plugin-name> <script>`를 쓴다.
+
+### 테스트 vault 규칙 (로컬 배포는 테스트 전용)
+
+- **로컬 `deploy.mjs`는 테스트 vault 전용이다.** 실제 플러그인은 main 머지 시 CI(`.github/workflows/deploy-vault.yml` → `publish-to-vault.mjs`)만 배포한다.
+- `OBSIDIAN_VAULT`는 **필수**(default 없음). 미설정 시 배포가 중단된다 — 실수로 실제 vault에 심링크되는 걸 막기 위함.
+- 실제 배포 vault(`/Users/chan/Desktop/chanoo`)는 **차단**된다. `OBSIDIAN_VAULT`로 명시해도 거부한다(`deploy.mjs`의 `PRODUCTION_VAULT`).
+- 테스트 vault 경로는 `.env`(gitignore됨)에 `OBSIDIAN_VAULT=...`로 둔다. `deploy:vault`/`build:deploy`가 `--env-file-if-exists=.env`로 자동 로드한다.
 
 ## 모노레포 규칙
 
