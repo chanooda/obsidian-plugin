@@ -36,9 +36,13 @@ pnpm install
 ```bash
 pnpm build          # Build all plugins (turbo, dependency-ordered)
 pnpm dev            # Watch-build all plugins
-pnpm deploy:vault   # Symlink every plugin's dist/ into the vault
-pnpm build:deploy   # Build then deploy
+pnpm deploy:vault   # Symlink every plugin's dist/ into the test vault (one-time)
 ```
+
+Day-to-day: run `pnpm deploy:vault` once to symlink the test vault, then
+`pnpm dev` to watch-rebuild. The symlink points at each `dist/`, so dev rebuilds
+show up in Obsidian (after reload). Re-run `deploy:vault` only when adding a new
+plugin or if a symlink breaks.
 
 ## Vault location
 
@@ -58,8 +62,8 @@ Set the test vault in `.env` (gitignored) once:
 OBSIDIAN_VAULT=/Users/chan/Desktop/plugin-test
 ```
 
-`pnpm deploy:vault` / `pnpm build:deploy` load `.env` automatically. To target a
-different test vault for a single run, override it:
+`pnpm deploy:vault` loads `.env` automatically. To target a different test vault
+for a single run, override it:
 
 ```bash
 OBSIDIAN_VAULT="/path/to/another/test-vault" pnpm deploy:vault
@@ -69,4 +73,4 @@ OBSIDIAN_VAULT="/path/to/another/test-vault" pnpm deploy:vault
 
 1. Copy `plugins/hello-world` to `plugins/<your-plugin>`.
 2. Update its `package.json` `name` and `manifest.json` `id`/`name`.
-3. `pnpm install`, then `pnpm build:deploy`.
+3. `pnpm install`, then `pnpm build` and `pnpm deploy:vault`.
